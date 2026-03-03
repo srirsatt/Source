@@ -71,12 +71,33 @@ class Source implements vscode.WebviewViewProvider {
 			<head>
 				<meta charset="UTF-8">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
 				<title>Source</title>
+				<style>
+					.container {
+						display: flex;
+						flex-direction: column;
+						gap: 10px;
+					}
+				</style>
 			</head>
 			<body>
+			<div class="container">
 				<h1>Source</h1>
+				<input type="text" id="urlInput" placeholder="https://supabase.com/docs/..." />
+				<select id="agentSelect">
+					<option value="antigravity">Antigravity</option>
+					<option value="claudecode">Claude Code</option>
+					<option value="cursor">Cursor</option>
+					<option value="copilot">Copilot</option>
+				</select>
+
+				<button id="goBtn">Index Docs</button>
+			</div>
+
+
 				<script nonce="${nonce}" src="${scriptUri}"></script>
+
 			</body>
 			</html>
 		`;

@@ -4,7 +4,7 @@
   "description": "Source, a VS Code extension to bridge the hallucination gap between coding agents and documentation.",
   "version": "0.0.1",
   "engines": {
-    "vscode": "^1.109.0"
+    "vscode": "^1.107.0"
   },
   "categories": [
     "Other"
@@ -12,6 +12,15 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "source-sidebar",
+          "title": "Source",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "source.helloWorld",
@@ -19,11 +28,12 @@
       }
     ],
     "views": {
-      "explorer": [
+      "source-sidebar": [
         {
           "type": "webview",
           "id": "source.mainView",
-          "name": "Source"
+          "name": "Source",
+          "icon": "media/icon.svg"
         }
       ]
     }
