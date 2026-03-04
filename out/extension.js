@@ -38,6 +38,7 @@ exports.deactivate = deactivate;
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 const vscode = __importStar(require("vscode"));
+const crawler_1 = require("./crawler");
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
@@ -76,6 +77,20 @@ class Source {
             localResourceRoots: [this._extensionUri],
         };
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+        webviewView.webview.onDidReceiveMessage(async (message) => {
+            if (message.command === 'indexUrl') {
+                vscode.window.showInformationMessage(`Indexing ${message.url} for ${message.agent}`);
+                // msg cralwer goes here
+                // basically, we want to crawl the link thru MCP + indexing, and send it back
+                // afterwards, we'll keep the done command as it is here
+                // lets start with a basic HTML index -> crawler.ts
+                const pages = await (0, crawler_1.crawlDocs)(message.url, { maxDepth: 3, maxPages: 100 });
+                console.log(`Crawled ${pages.length} pages`);
+                webviewView.webview.postMessage({
+                    command: 'done'
+                });
+            }
+        });
     }
     _getHtmlForWebview(webview) {
         // Get the local path to main script run in the webview
