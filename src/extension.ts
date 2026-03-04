@@ -63,7 +63,7 @@ class Source implements vscode.WebviewViewProvider {
 				// afterwards, we'll keep the done command as it is here
 
 				// lets start with a basic HTML index -> crawler.ts
-				const pages = await crawlDocs(message.url, { maxDepth: 3, maxPages: 100 });
+				const pages = await crawlDocs(message.url, { maxDepth: 3, maxPages: 200 });
 				console.log(`Crawled ${pages.length} pages`);
 
 				webviewView.webview.postMessage({

@@ -84,7 +84,7 @@ class Source {
                 // basically, we want to crawl the link thru MCP + indexing, and send it back
                 // afterwards, we'll keep the done command as it is here
                 // lets start with a basic HTML index -> crawler.ts
-                const pages = await (0, crawler_1.crawlDocs)(message.url, { maxDepth: 3, maxPages: 100 });
+                const pages = await (0, crawler_1.crawlDocs)(message.url, { maxDepth: 3, maxPages: 200 });
                 console.log(`Crawled ${pages.length} pages`);
                 webviewView.webview.postMessage({
                     command: 'done'

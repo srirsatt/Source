@@ -16,57 +16,105 @@ export interface CrawlConfig {
     maxPages: number; // max total pages (100 max)
 }
 
-export async function crawlDocs(startUrl: string, config: CrawlConfig): Promise<CrawledPage[]> {
-    // logic: use a set to track visited urls (no repeats), have a total result array, recursively crawl 'a' tags
+// sitemap.xml fallback -> tries to grab all URLs from the site's sitemap before crawling
+async function tryGetSitemapUrls(startUrl: string): Promise<string[] | null> {
+    try {
+        const origin = new URL(startUrl).origin;
+        const sitemapUrl = `${origin}/sitemap.xml`;
+        const response = await fetch(sitemapUrl);
 
-    // scrape url
-    const visited = new Set<string>();
-    const result: CrawledPage[] = [];
-
-
-    async function crawlPage(url: string, depth: number) {
-        // internal recursive func
-        if (visited.has(url)) {
-            return;
+        if (!response.ok) {
+            return null;
         }
 
-        if (depth > config.maxDepth) {
-            return;
+        const xml = await response.text();
+        const $ = cheerio.load(xml, { xmlMode: true });
+        const urls = $('loc').map((_, el) => $(el).text()).get();
+
+        if (urls.length === 0) {
+            return null;
         }
 
-        if (result.length >= config.maxPages) {
-            return;
-        }
+        console.log(`Found sitemap with ${urls.length} URLs`);
+        return urls;
+    } catch {
+        return null;
+    }
+}
 
-        visited.add(url);
-        console.log(url);
-
-        // scrape page
+// fetch a single page and extract title + content
+async function fetchPage(url: string): Promise<CrawledPage | null> {
+    try {
         const response = await fetch(url);
         const html = await response.text();
         const $ = cheerio.load(html);
         $('footer, nav, header, script, style').remove();
         const title = $('h1').first().text() || $('title').text();
         const content = $('main').text() || $('article').text() || $('body').text();
+        return { url, title, content };
+    } catch (err) {
+        console.warn(`Failed to fetch ${url}:`, err);
+        return null;
+    }
+}
 
-        result.push({
-            url,
-            title,
-            content: content
+export async function crawlDocs(startUrl: string, config: CrawlConfig): Promise<CrawledPage[]> {
+    const visited = new Set<string>();
+    const result: CrawledPage[] = [];
 
-        });
+    // try sitemap first
+    const sitemapUrls = await tryGetSitemapUrls(startUrl);
 
-        // crawl links
+    if (sitemapUrls && sitemapUrls.length > 0) {
+        // filter to same path prefix as the start URL (e.g. /docs/*)
+        const basePath = new URL(startUrl).pathname.split('/').slice(0, 2).join('/');
+        const filtered = sitemapUrls
+            .filter(u => new URL(u).pathname.startsWith(basePath))
+            .slice(0, config.maxPages);
+
+        console.log(`Sitemap: ${filtered.length} URLs match path "${basePath}"`);
+
+        if (filtered.length > 0) {
+
+            for (const url of filtered) {
+                console.log(`[${result.length + 1}/${filtered.length}] ${url}`);
+                const page = await fetchPage(url);
+                if (page) {
+                    result.push(page);
+                }
+            }
+
+            return result;
+        }
+    }
+
+    // fallback: recursive link crawling
+    console.log('No sitemap found (or 0 matches), falling back to link crawling...');
+
+    async function crawlPage(url: string, depth: number) {
+        if (visited.has(url)) { return; }
+        if (depth > config.maxDepth) { return; }
+        if (result.length >= config.maxPages) { return; }
+
+        visited.add(url);
+        console.log(`[${result.length + 1}] Crawling: ${url} (depth: ${depth})`);
+
+        const page = await fetchPage(url);
+        if (!page) { return; }
+        result.push(page);
+
+        // find and follow internal links
+        const response = await fetch(url);
+        const html = await response.text();
+        const $ = cheerio.load(html);
         const links = $('a').map((_, el) => $(el).attr('href')).get();
-        const baseHostname = new URL(url).hostname;
+        const baseHostname = new URL(startUrl).hostname;
+
         for (const link of links) {
             try {
-                const resolved = new URL(link, url).href; // curr page urls
+                const resolved = new URL(link, url).href;
                 const resolvedUrl = new URL(resolved);
-
-                // strip hash frags
                 resolvedUrl.hash = '';
-
                 const clean = resolvedUrl.href.replace(/\/$/, '');
 
                 if (resolvedUrl.hostname === baseHostname) {
@@ -76,9 +124,7 @@ export async function crawlDocs(startUrl: string, config: CrawlConfig): Promise<
                 continue;
             }
         }
-
     }
-
 
     await crawlPage(startUrl, 0);
     return result;
