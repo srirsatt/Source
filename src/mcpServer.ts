@@ -1,6 +1,6 @@
 // mcp server -> links into agent and uses BM25 to index what links are most useful
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import MiniSearch from 'minisearch';
 import { CrawledPage } from './crawler';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -51,4 +51,70 @@ function writeContextFile(pages: CrawledPage[], workspacePath: string) {
     const filePath = path.join(sourceDir, 'CONTEXT.md');
     fs.writeFileSync(filePath, markdown, 'utf-8');
     console.log(`Context file done!: located @ ${filePath}`)
+}
+
+// save the raw pages as a JSON file -> standalone MCP server can load these
+function writePagesJson(pages: CrawledPage[], workspacePath: string) {
+    const sourceDir = path.join(workspacePath, '.source');
+    if (!fs.existsSync(sourceDir)) {
+        fs.mkdirSync(sourceDir, { recursive: true });
+    }
+    const filePath = path.join(sourceDir, 'pages.json');
+    fs.writeFileSync(filePath, JSON.stringify(pages), 'utf-8');
+    console.log(`Pages JSON done!: located @ ${filePath}`)
+}
+
+function createMCPServer(pages: CrawledPage[]) {
+    // mcp server to be linked into agent of use
+
+    const index = buildIndex(pages);
+
+    const server = new McpServer({
+        name: 'source-docs',
+        version: '1.0.0',
+    });
+
+    // lets register our search tool
+    server.tool(
+        'search_docs',
+        // instruction
+        'Search from the indexed documentation pages by keyword or topic.',
+        {
+            query:
+                z.string().describe('Search query for documentation')
+        },
+        async ({ query }) => {
+            const results = index.search(query).slice(0, 5); // best 5 links
+            if (results.length === 0) {
+                return {
+                    content: [{ type: 'text' as const, text: 'No results found.' }]
+                };
+            }
+
+            const text = results.map((r: any) =>
+                `## ${r.title}\nURL: ${r.url}\nScore: ${r.score.toFixed(2)}\n\n${r.content.slice(0, 500)}`
+            ).join('\n\n---\n\n');
+
+            return {
+                content: [{ type: 'text' as const, text }]
+            };
+        }
+    );
+
+    return server;
+}
+
+export function setupDocs(pages: CrawledPage[], workspacePath: string) {
+    writeContextFile(pages, workspacePath);
+    writePagesJson(pages, workspacePath);
+}
+
+if (require.main === module) {
+    const pagesPath = process.argv[2] || '.source/pages.json';
+    const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
+    const server = createMCPServer(pages);
+    const transport = new StdioServerTransport();
+
+    server.connect(transport);
+    console.error(`MCP started, ${pages.length} pages`)
 }

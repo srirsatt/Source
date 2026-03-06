@@ -2,6 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { crawlDocs } from './crawler';
+import { setupDocs } from './mcpServer';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -65,6 +66,11 @@ class Source implements vscode.WebviewViewProvider {
 				// lets start with a basic HTML index -> crawler.ts
 				const pages = await crawlDocs(message.url, { maxDepth: 3, maxPages: 200 });
 				console.log(`Crawled ${pages.length} pages`);
+
+				const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+				if (workspacePath) {
+					await setupDocs(pages, workspacePath);
+				}
 
 				webviewView.webview.postMessage({
 					command: 'done'

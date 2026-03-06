@@ -39,6 +39,7 @@ exports.deactivate = deactivate;
 // Import the module and reference it with the alias vscode in your code below
 const vscode = __importStar(require("vscode"));
 const crawler_1 = require("./crawler");
+const mcpServer_1 = require("./mcpServer");
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
@@ -86,6 +87,10 @@ class Source {
                 // lets start with a basic HTML index -> crawler.ts
                 const pages = await (0, crawler_1.crawlDocs)(message.url, { maxDepth: 3, maxPages: 200 });
                 console.log(`Crawled ${pages.length} pages`);
+                const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                if (workspacePath) {
+                    await (0, mcpServer_1.setupDocs)(pages, workspacePath);
+                }
                 webviewView.webview.postMessage({
                     command: 'done'
                 });

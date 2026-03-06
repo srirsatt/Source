@@ -66,9 +66,10 @@ export async function crawlDocs(startUrl: string, config: CrawlConfig): Promise<
     const sitemapUrls = await tryGetSitemapUrls(startUrl);
 
     if (sitemapUrls && sitemapUrls.length > 0) {
-        // filter to same path prefix as the start URL (e.g. /docs/*)
+        // filter out versioned/deprecated docs and match path prefix
         const basePath = new URL(startUrl).pathname.split('/').slice(0, 2).join('/');
         const filtered = sitemapUrls
+            .filter(u => !/\/\d+\.\d+\.x\/|\/\d+\.x\/|\/v\d+\//.test(u))
             .filter(u => new URL(u).pathname.startsWith(basePath))
             .slice(0, config.maxPages);
 
