@@ -69,7 +69,7 @@ class Source implements vscode.WebviewViewProvider {
 
 				const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 				if (workspacePath) {
-					await setupDocs(pages, workspacePath);
+					await setupDocs(pages, workspacePath, message.url);
 				}
 
 				webviewView.webview.postMessage({

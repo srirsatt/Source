@@ -7,6 +7,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
+import { writeAgentRules } from './ruleWriter';
 
 
 // for our server, define a BM25 scraper
@@ -104,9 +105,10 @@ function createMCPServer(pages: CrawledPage[]) {
     return server;
 }
 
-export function setupDocs(pages: CrawledPage[], workspacePath: string) {
-    writeContextFile(pages, workspacePath);
+export function setupDocs(pages: CrawledPage[], workspacePath: string, sourceUrl: string) {
+    //writeContextFile(pages, workspacePath); not necessary with doc chunks
     writePagesJson(pages, workspacePath);
+    writeAgentRules(pages, workspacePath, sourceUrl); // 
 }
 
 if (require.main === module) {

@@ -44,6 +44,7 @@ const stdio_js_1 = require("@modelcontextprotocol/sdk/server/stdio.js");
 const zod_1 = require("zod");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const ruleWriter_1 = require("./ruleWriter");
 // for our server, define a BM25 scraper
 function buildIndex(pages) {
     const index = new minisearch_1.default({
@@ -117,9 +118,10 @@ function createMCPServer(pages) {
     });
     return server;
 }
-function setupDocs(pages, workspacePath) {
-    writeContextFile(pages, workspacePath);
+function setupDocs(pages, workspacePath, sourceUrl) {
+    //writeContextFile(pages, workspacePath); not necessary with doc chunks
     writePagesJson(pages, workspacePath);
+    (0, ruleWriter_1.writeAgentRules)(pages, workspacePath, sourceUrl); // 
 }
 if (require.main === module) {
     const pagesPath = process.argv[2] || '.source/pages.json';

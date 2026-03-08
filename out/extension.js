@@ -89,7 +89,7 @@ class Source {
                 console.log(`Crawled ${pages.length} pages`);
                 const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
                 if (workspacePath) {
-                    await (0, mcpServer_1.setupDocs)(pages, workspacePath);
+                    await (0, mcpServer_1.setupDocs)(pages, workspacePath, message.url);
                 }
                 webviewView.webview.postMessage({
                     command: 'done'
