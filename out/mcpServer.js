@@ -116,6 +116,15 @@ function createMCPServer(pages) {
             content: [{ type: 'text', text }]
         };
     });
+    for (const page of pages) {
+        server.resource(page.title, `doc://source-docs/${new URL(page.url).pathname}`, async () => ({
+            contents: [{
+                    uri: `doc://source-docs/${new URL(page.url).pathname}`,
+                    text: `# ${page.title}\nURL: ${page.url}\n\n${page.content}`,
+                    mimeType: 'text/markdown'
+                }]
+        }));
+    }
     return server;
 }
 function setupDocs(pages, workspacePath, sourceUrl) {

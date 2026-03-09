@@ -7,8 +7,127 @@ import { CrawledPage } from './crawler';
 
 // antigravity rule writing
 
-// if (antigravity):
 const MAX_CHUNK_CHARS = 10000; // slightly under 12k max
+
+
+// HUGE change -> docs as foundation to work with mcp rather than both coexisting as standalone solutions
+
+
+function buildFoundationalSummary(pages: CrawledPage[], sourceUrl: string): string {
+    const hostname = new URL(sourceUrl).hostname;
+
+    let summary = `# Source: ${hostname}\n\n`;
+    summary += `Indexed ${pages.length} pages from ${sourceUrl}\n`;
+    summary += `Generated: ${new Date().toISOString()}\n\n`;
+
+    // MCP instruction
+    summary += `## Search Tool\n`;
+    summary += `Use the \`search_docs\` MCP tool from \`source-docs\` for specific API questions.\n`;
+    summary += `**Always search \`source-docs\` FIRST** before looking through project files or guessing.\n`;
+    summary += `If \`search_docs\` returns no results, then fall back to reading project source code.\n\n`;
+
+    // table of contents -> extremely high level overview on how to use
+    summary += `## Available Topics\n`;
+    summary += `The following documentation sections are indexed and searchable:\n\n`;
+
+    for (const page of pages) {
+        const line = `-[${page.title}](${page.url})\n`;
+        if (summary.length + line.length > MAX_CHUNK_CHARS) {
+            summary += `- ... and ${pages.length - pages.indexOf(page)} more pages (use \`search_docs\` to find them)\n`;
+            break;
+        }
+        summary += line;
+    }
+
+    summary += `\n`;
+
+
+    // quick reference - key content from first few pages
+    summary += `## Quick Reference\n`;
+    const introPage = pages.find(p =>
+        /intro|getting.started|overview|quickstart/i.test(p.title)
+    ) || pages[0];
+    if (introPage) {
+        // Take just the first ~1000 chars of the intro
+        const snippet = introPage.content.trim().slice(0, 1000);
+        summary += `From: ${introPage.title}\n\n`;
+        summary += `${snippet}\n`;
+        if (introPage.content.length > 1000) {
+            summary += `\n... (use \`search_docs\` for full content)\n`;
+        }
+    }
+
+    return summary;
+}
+
+// lean rule file writing, <workspaceDir>/.agent/rules
+
+function writeRuleFile(pages: CrawledPage[], workspacePath: string, sourceUrl: string) {
+    const rulesDir = path.join(workspacePath, '.agent', 'rules');
+    if (!fs.existsSync(rulesDir)) {
+        fs.mkdirSync(rulesDir, { recursive: true });
+    }
+
+    const summary = buildFoundationalSummary(pages, sourceUrl);
+
+    const safeName = new URL(sourceUrl).hostname.replace(/[^a-z0-9]/gi, '-');
+    const filePath = path.join(rulesDir, `source-${safeName}.md`);
+    fs.writeFileSync(filePath, summary, 'utf-8');
+
+    console.log(`Rule file written: ${filePath} (@ ${summary.length} chars)`);
+
+
+}
+
+function writeAntigravityMcpConfig(workspacePath: string) {
+    const configPath = path.join(os.homedir(), '.gemini', 'antigravity', 'mcp_config.json');
+    const configDir = path.join(os.homedir(), '.gemini', 'antigravity');
+
+    if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true });
+    }
+
+    let config: any = {
+        mcpServers: {}
+    };
+
+    if (fs.existsSync(configPath)) {
+        try {
+            config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+            if (!config.mcpServers) {
+                config.mcpServers = {};
+            }
+        } catch {
+            // nothing
+        }
+    }
+
+    // add source-docs
+    config.mcpServers['source-docs'] = {
+        command: 'node',
+        args: [
+            // for now, hardcoded path -> we'll change later
+            '/Users/srirams/Developer/Source/source/out/mcpServer.js',
+            path.join(workspacePath, '.source', 'pages.json')
+        ]
+    };
+
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
+    console.log(`MCP config updated @ ${configPath}`);
+}
+
+export function writeAgentRules(pages: CrawledPage[], workspacePath: string, sourceUrl: string) {
+    writeRuleFile(pages, workspacePath, sourceUrl);
+
+    // need a checker here for antigrav vs claude vs cursor, etc.
+    writeAntigravityMcpConfig(workspacePath);
+}
+
+
+// our MCP config file
+
+
+/*
 
 // chunks our grand file into chunk files
 function chunkPages(pages: CrawledPage[], workspacePath: string): string[] {
@@ -85,42 +204,6 @@ function writeRuleFile(pages: CrawledPage[], chunkPaths: string[], workspacePath
 }
 
 // to set up MCP server config
-function writeAntigravityMcpConfig(workspacePath: string) {
-    const configPath = path.join(os.homedir(), '.gemini', 'antigravity', 'mcp_config.json');
-    const configDir = path.join(os.homedir(), '.gemini', 'antigravity');
-
-    if (!fs.existsSync(configDir)) {
-        fs.mkdirSync(configDir, { recursive: true });
-    }
-
-    let config: any = {
-        mcpServers: {}
-    };
-
-    if (fs.existsSync(configPath)) {
-        try {
-            config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-            if (!config.mcpServers) {
-                config.mcpServers = {};
-            }
-        } catch {
-            // nothing
-        }
-    }
-
-    // add source-docs
-    config.mcpServers['source-docs'] = {
-        command: 'node',
-        args: [
-            // for now, hardcoded path -> we'll change later
-            '/Users/srirams/Developer/Source/source/out/mcpServer.js',
-            path.join(workspacePath, '.source', 'pages.json')
-        ]
-    };
-
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
-    console.log(`MCP config updated @ ${configPath}`);
-}
 
 export function writeAgentRules(pages: CrawledPage[], workspacePath: string, sourceUrl: string) {
     const chunkPaths = chunkPages(pages, workspacePath);
@@ -129,4 +212,6 @@ export function writeAgentRules(pages: CrawledPage[], workspacePath: string, sou
 }
 
 
+
+*/
 
