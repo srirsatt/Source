@@ -80,20 +80,31 @@ class Source {
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
         webviewView.webview.onDidReceiveMessage(async (message) => {
             if (message.command === 'indexUrl') {
+                // check if already indexed
+                const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                if (workspacePath && (0, mcpServer_1.isSourceIndexed)(message.url, workspacePath)) {
+                    const hostname = new URL(message.url).hostname;
+                    vscode.window.showInformationMessage(`${hostname} is already indexed. Remove it first to re-index.`);
+                    webviewView.webview.postMessage({ command: 'done' });
+                    return;
+                }
                 vscode.window.showInformationMessage(`Indexing ${message.url} for ${message.agent}`);
-                // msg cralwer goes here
-                // basically, we want to crawl the link thru MCP + indexing, and send it back
-                // afterwards, we'll keep the done command as it is here
-                // lets start with a basic HTML index -> crawler.ts
                 const pages = await (0, crawler_1.crawlDocs)(message.url, { maxDepth: 3, maxPages: 200 });
                 console.log(`Crawled ${pages.length} pages`);
-                const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
                 if (workspacePath) {
                     await (0, mcpServer_1.setupDocs)(pages, workspacePath, message.url);
                 }
                 webviewView.webview.postMessage({
                     command: 'done'
                 });
+            }
+            if (message.command === 'removeSource') {
+                const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                if (workspacePath) {
+                    (0, mcpServer_1.removeSource)(message.hostname, workspacePath);
+                    vscode.window.showInformationMessage(`Removed ${message.hostname}`);
+                    webviewView.webview.postMessage({ command: 'done' });
+                }
             }
         });
     }

@@ -24,6 +24,11 @@ function buildFoundationalSummary(pages: CrawledPage[], sourceUrl: string): stri
     summary += `## Search Tool\n`;
     summary += `Use the \`search_docs\` MCP tool from \`source-docs\` for specific API questions.\n`;
     summary += `**Always search \`source-docs\` FIRST** before looking through project files or guessing.\n`;
+    summary += `## ⚠️ MANDATORY: Verify with search_docs\n`;
+    summary += `You MUST call \`search_docs\` from the \`source-docs\` MCP server on EVERY request related to this library.\n`;
+    summary += `Do NOT rely on your training data — it may be outdated or incorrect.\n`;
+    summary += `The indexed docs are the source of truth for this project's version.\n`;
+    summary += `Even if you think you know the answer, verify it against \`search_docs\` first.\n\n`;
     summary += `If \`search_docs\` returns no results, then fall back to reading project source code.\n\n`;
 
     // table of contents -> extremely high level overview on how to use
@@ -108,7 +113,7 @@ function writeAntigravityMcpConfig(workspacePath: string) {
         args: [
             // for now, hardcoded path -> we'll change later
             '/Users/srirams/Developer/Source/source/out/mcpServer.js',
-            path.join(workspacePath, '.source', 'pages.json')
+            path.join(workspacePath, '.source')
         ]
     };
 

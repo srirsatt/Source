@@ -2,7 +2,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import MiniSearch from 'minisearch';
-import { CrawledPage } from './crawler';
+import { CrawledPage, SourceManifest, SourceEntry } from './crawler';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import * as fs from 'fs';
@@ -13,6 +13,14 @@ import { writeAgentRules } from './ruleWriter';
 // for our server, define a BM25 scraper
 
 function buildIndex(pages: CrawledPage[]) {
+    // deduplicate by URL and filter out bad entries
+    const seen = new Set<string>();
+    const cleanPages = pages.filter(p => {
+        if (!p.url || p.url.includes('undefined') || seen.has(p.url)) return false;
+        seen.add(p.url);
+        return true;
+    });
+
     const index = new MiniSearch({
         fields: ['title', 'content'],
         idField: 'url',
@@ -24,7 +32,7 @@ function buildIndex(pages: CrawledPage[]) {
         }
     });
 
-    index.addAll(pages);
+    index.addAll(cleanPages);
     return index;
 }
 
@@ -102,13 +110,20 @@ function createMCPServer(pages: CrawledPage[]) {
         }
     );
 
+    // deduplicate for resource registration
+    const seenUris = new Set<string>();
     for (const page of pages) {
+        if (!page.url || page.url.includes('undefined')) continue;
+        const uri = `doc://source-docs/${new URL(page.url).pathname}`;
+        if (seenUris.has(uri)) continue;
+        seenUris.add(uri);
+
         server.resource(
             page.title,
-            `doc://source-docs/${new URL(page.url).pathname}`,
+            uri,
             async () => ({
                 contents: [{
-                    uri: `doc://source-docs/${new URL(page.url).pathname}`,
+                    uri,
                     text: `# ${page.title}\nURL: ${page.url}\n\n${page.content}`,
                     mimeType: 'text/markdown'
                 }]
@@ -119,18 +134,131 @@ function createMCPServer(pages: CrawledPage[]) {
     return server;
 }
 
+export function isSourceIndexed(sourceUrl: string, workspacePath: string): boolean {
+    const manifestPath = path.join(workspacePath, '.source', 'manifest.json');
+    if (!fs.existsSync(manifestPath)) return false;
+    try {
+        const manifest: SourceManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        const hostname = new URL(sourceUrl).hostname;
+        return manifest.sources.some(s => s.hostname === hostname);
+    } catch {
+        return false;
+    }
+}
+
 export function setupDocs(pages: CrawledPage[], workspacePath: string, sourceUrl: string) {
     //writeContextFile(pages, workspacePath); not necessary with doc chunks
-    writePagesJson(pages, workspacePath);
+
+    const sourceDir = path.join(workspacePath, '.source');
+    if (!fs.existsSync(sourceDir)) {
+        fs.mkdirSync(sourceDir, { recursive: true });
+    }
+
+    const safeName = new URL(sourceUrl).hostname.replace(/[^a-z0-9]/gi, '-');
+
+    const pagesFile = `pages-${safeName}.json`;
+    fs.writeFileSync(path.join(sourceDir, pagesFile), JSON.stringify(pages), 'utf-8');
+
+    const manifestPath = path.join(sourceDir, 'manifest.json');
+    let manifest: SourceManifest = { sources: [] };
+
+    // fill out manifest
+    if (fs.existsSync(manifestPath)) {
+        try {
+            manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+
+        } catch {
+            // nothing
+        }
+
+        // update / add source entries
+    }
+
+    const existing = manifest.sources.findIndex(s => s.hostname === new URL(sourceUrl).hostname);
+    const entry: SourceEntry = {
+        hostname: new URL(sourceUrl).hostname,
+        sourceUrl,
+        pagesFile,
+        ruleFile: `source-${safeName}.md`,
+        pageCount: pages.length,
+        indexedAt: new Date().toISOString()
+    };
+
+    if (existing >= 0) {
+        manifest.sources[existing] = entry;
+    } else {
+        manifest.sources.push(entry);
+    }
+
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+
+
+
+    //writePagesJson(pages, workspacePath);
     writeAgentRules(pages, workspacePath, sourceUrl); // 
 }
 
+export function removeSource(hostname: string, workspacePath: string) {
+    const sourceDir = path.join(workspacePath, '.source');
+    const manifestPath = path.join(sourceDir, 'manifest.json');
+
+    if (!fs.existsSync(manifestPath)) {
+        return; // nothing to do
+    }
+
+    const manifest: SourceManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+
+    const entry = manifest.sources.find(s => s.hostname === hostname);
+    if (!entry) return;
+
+    // remove the source
+    const pagesPath = path.join(sourceDir, entry.pagesFile);
+    if (fs.existsSync(pagesPath)) {
+        fs.unlinkSync(pagesPath);
+    }
+
+    const rulePath = path.join(workspacePath, '.agent', 'rules', entry.ruleFile);
+    if (fs.existsSync(rulePath)) {
+        fs.unlinkSync(rulePath);
+    }
+
+    // remove this source from the manifest
+    manifest.sources = manifest.sources.filter(s => s.hostname !== hostname);
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+
+    console.log(`Removed source!: ${hostname}`);
+}
+
 if (require.main === module) {
+
+    // we need to load all the pages from manifest.json
+
+    /*
+
     const pagesPath = process.argv[2] || '.source/pages.json';
     const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
     const server = createMCPServer(pages);
     const transport = new StdioServerTransport();
 
+
     server.connect(transport);
     console.error(`MCP started, ${pages.length} pages`)
+
+    */
+
+    const sourceDir = process.argv[2] || '.source';
+    const manifestPath = path.join(sourceDir, 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+
+    let allPages: CrawledPage[] = [];
+    for (const source of manifest.sources) {
+        const pages = JSON.parse(fs.readFileSync(path.join(sourceDir, source.pagesFile), 'utf-8'));
+        allPages = allPages.concat(pages);
+    }
+
+    const server = createMCPServer(allPages);
+    const transport = new StdioServerTransport();
+
+    server.connect(transport);
+    console.error(`MCP started, ${allPages.length} pages from ${manifest.sources.length} sources`);
 }

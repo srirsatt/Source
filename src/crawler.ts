@@ -16,30 +16,99 @@ export interface CrawlConfig {
     maxPages: number; // max total pages (100 max)
 }
 
-// sitemap.xml fallback -> tries to grab all URLs from the site's sitemap before crawling
-async function tryGetSitemapUrls(startUrl: string): Promise<string[] | null> {
+export interface SourceEntry {
+    hostname: string;
+    sourceUrl: string;
+    pagesFile: string;
+    ruleFile: string;
+    pageCount: number;
+    indexedAt: string; // ISO timestamp
+}
+
+export interface SourceManifest {
+    sources: SourceEntry[];
+}
+
+// parse a single sitemap (or sitemap index) URL into page URLs
+async function parseSitemap(sitemapUrl: string): Promise<string[] | null> {
     try {
-        const origin = new URL(startUrl).origin;
-        const sitemapUrl = `${origin}/sitemap.xml`;
-        const response = await fetch(sitemapUrl);
+        const res = await fetch(sitemapUrl);
+        if (!res.ok) return null;
 
-        if (!response.ok) {
-            return null;
-        }
-
-        const xml = await response.text();
+        const xml = await res.text();
         const $ = cheerio.load(xml, { xmlMode: true });
-        const urls = $('loc').map((_, el) => $(el).text()).get();
 
-        if (urls.length === 0) {
-            return null;
+        // check if this is a sitemap index (contains nested sitemaps)
+        const nestedSitemaps = $('sitemap loc').map((_, el) => $(el).text()).get();
+        if (nestedSitemaps.length > 0) {
+            let allUrls: string[] = [];
+            for (const nested of nestedSitemaps) {
+                const urls = await parseSitemap(nested);
+                if (urls) allUrls = allUrls.concat(urls);
+            }
+            return allUrls.length > 0 ? allUrls : null;
         }
 
-        console.log(`Found sitemap with ${urls.length} URLs`);
-        return urls;
+        // regular sitemap — extract URLs
+        const urls = $('loc').map((_, el) => $(el).text()).get();
+        return urls.length > 0 ? urls : null;
     } catch {
         return null;
     }
+}
+
+// sitemap discovery -> checks robots.txt first, then common paths
+async function tryGetSitemapUrls(startUrl: string): Promise<string[] | null> {
+    const origin = new URL(startUrl).origin;
+    const pathParts = new URL(startUrl).pathname.split('/').filter(Boolean);
+
+    // 1. check nearest-path sitemaps first (walk up from the URL path)
+    // e.g. for /docs/ref/js/intro -> try /docs/ref/js/sitemap.xml, /docs/ref/sitemap.xml, /docs/sitemap.xml
+    for (let i = pathParts.length - 1; i >= 1; i--) {
+        const pathPrefix = '/' + pathParts.slice(0, i).join('/');
+        const candidate = `${origin}${pathPrefix}/sitemap.xml`;
+        const urls = await parseSitemap(candidate);
+        if (urls && urls.length > 0) {
+            console.log(`Found nearest-path sitemap: ${candidate} (${urls.length} URLs)`);
+            return urls;
+        }
+    }
+
+    // 2. check robots.txt — standard way to declare sitemaps
+    try {
+        const robotsRes = await fetch(`${origin}/robots.txt`);
+        if (robotsRes.ok) {
+            const robotsTxt = await robotsRes.text();
+            const sitemapLines = robotsTxt
+                .split('\n')
+                .filter((line: string) => /^sitemap:/i.test(line.trim()))
+                .map((line: string) => line.split(':').slice(1).join(':').trim());
+
+            for (const sitemapUrl of sitemapLines) {
+                const urls = await parseSitemap(sitemapUrl);
+                if (urls && urls.length > 0) {
+                    console.log(`Found sitemap via robots.txt: ${sitemapUrl} (${urls.length} URLs)`);
+                    return urls;
+                }
+            }
+        }
+    } catch { }
+
+    // 3. try common root sitemap paths as final fallback
+    const candidates = [
+        `${origin}/sitemap.xml`,
+        `${origin}/sitemap_index.xml`,
+    ];
+
+    for (const candidate of candidates) {
+        const urls = await parseSitemap(candidate);
+        if (urls && urls.length > 0) {
+            console.log(`Found sitemap at ${candidate} (${urls.length} URLs)`);
+            return urls;
+        }
+    }
+
+    return null;
 }
 
 // fetch a single page and extract title + content
@@ -67,7 +136,8 @@ export async function crawlDocs(startUrl: string, config: CrawlConfig): Promise<
 
     if (sitemapUrls && sitemapUrls.length > 0) {
         // filter out versioned/deprecated docs and match path prefix
-        const basePath = new URL(startUrl).pathname.split('/').slice(0, 2).join('/');
+        const pathParts = new URL(startUrl).pathname.split('/').filter(Boolean);
+        const basePath = '/' + pathParts.slice(0, -1).join('/');
         const filtered = sitemapUrls
             .filter(u => !/\/\d+\.\d+\.x\/|\/\d+\.x\/|\/v\d+\//.test(u))
             .filter(u => new URL(u).pathname.startsWith(basePath))

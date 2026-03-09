@@ -2,7 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { crawlDocs } from './crawler';
-import { setupDocs } from './mcpServer';
+import { setupDocs, removeSource, isSourceIndexed } from './mcpServer';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -58,16 +58,19 @@ class Source implements vscode.WebviewViewProvider {
 		webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 		webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.command === 'indexUrl') {
-				vscode.window.showInformationMessage(`Indexing ${message.url} for ${message.agent}`);
-				// msg cralwer goes here
-				// basically, we want to crawl the link thru MCP + indexing, and send it back
-				// afterwards, we'll keep the done command as it is here
+				// check if already indexed
+				const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+				if (workspacePath && isSourceIndexed(message.url, workspacePath)) {
+					const hostname = new URL(message.url).hostname;
+					vscode.window.showInformationMessage(`${hostname} is already indexed. Remove it first to re-index.`);
+					webviewView.webview.postMessage({ command: 'done' });
+					return;
+				}
 
-				// lets start with a basic HTML index -> crawler.ts
+				vscode.window.showInformationMessage(`Indexing ${message.url} for ${message.agent}`);
 				const pages = await crawlDocs(message.url, { maxDepth: 3, maxPages: 200 });
 				console.log(`Crawled ${pages.length} pages`);
 
-				const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 				if (workspacePath) {
 					await setupDocs(pages, workspacePath, message.url);
 				}
@@ -77,6 +80,18 @@ class Source implements vscode.WebviewViewProvider {
 				});
 
 			}
+
+			if (message.command === 'removeSource') {
+				const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+				if (workspacePath) {
+					removeSource(message.hostname, workspacePath);
+
+					vscode.window.showInformationMessage(`Removed ${message.hostname}`);
+
+					webviewView.webview.postMessage({ command: 'done' });
+				}
+			}
+
 		});
 	}
 
