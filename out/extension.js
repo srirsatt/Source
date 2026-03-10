@@ -80,11 +80,15 @@ class Source {
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
         webviewView.webview.onDidReceiveMessage(async (message) => {
             if (message.command === 'indexUrl') {
-                // check if already indexed
                 const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
                 if (workspacePath && (0, mcpServer_1.isSourceIndexed)(message.url, workspacePath)) {
+                    // already crawled — just re-run agent setup with existing pages
                     const hostname = new URL(message.url).hostname;
-                    vscode.window.showInformationMessage(`${hostname} is already indexed. Remove it first to re-index.`);
+                    vscode.window.showInformationMessage(`${hostname} already crawled, updating agent configs...`);
+                    const existingPages = (0, mcpServer_1.getIndexedPages)(message.url, workspacePath);
+                    if (existingPages) {
+                        await (0, mcpServer_1.setupDocs)(existingPages, workspacePath, message.url, this._extensionUri.fsPath);
+                    }
                     webviewView.webview.postMessage({ command: 'done' });
                     return;
                 }
@@ -92,7 +96,7 @@ class Source {
                 const pages = await (0, crawler_1.crawlDocs)(message.url, { maxDepth: 3, maxPages: 200 });
                 console.log(`Crawled ${pages.length} pages`);
                 if (workspacePath) {
-                    await (0, mcpServer_1.setupDocs)(pages, workspacePath, message.url);
+                    await (0, mcpServer_1.setupDocs)(pages, workspacePath, message.url, this._extensionUri.fsPath);
                 }
                 webviewView.webview.postMessage({
                     command: 'done'

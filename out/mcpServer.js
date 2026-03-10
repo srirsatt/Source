@@ -37,6 +37,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getIndexedPages = getIndexedPages;
 exports.isSourceIndexed = isSourceIndexed;
 exports.setupDocs = setupDocs;
 exports.removeSource = removeSource;
@@ -110,9 +111,7 @@ function createMCPServer(pages) {
         version: '1.0.0',
     });
     // lets register our search tool
-    server.tool('search_docs', 
-    // instruction
-    'Search from the indexed documentation pages by keyword or topic.', {
+    server.tool('search_docs', 'REQUIRED: You MUST call this tool BEFORE answering ANY question about the libraries/frameworks used in this project. Do NOT rely on training data — it is likely outdated. Call this tool first, then use the results to answer. If you skip this tool, your answer is probably wrong. Search indexed documentation by keyword or topic.', {
         query: zod_1.z.string().describe('Search query for documentation')
     }, async ({ query }) => {
         const results = index.search(query).slice(0, 5); // best 5 links
@@ -145,6 +144,26 @@ function createMCPServer(pages) {
     }
     return server;
 }
+function getIndexedPages(sourceUrl, workspacePath) {
+    const sourceDir = path.join(workspacePath, '.source');
+    const manifestPath = path.join(sourceDir, 'manifest.json');
+    if (!fs.existsSync(manifestPath))
+        return null;
+    try {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        const hostname = new URL(sourceUrl).hostname;
+        const entry = manifest.sources.find(s => s.hostname === hostname);
+        if (!entry)
+            return null;
+        const pagesPath = path.join(sourceDir, entry.pagesFile);
+        if (!fs.existsSync(pagesPath))
+            return null;
+        return JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
+    }
+    catch {
+        return null;
+    }
+}
 function isSourceIndexed(sourceUrl, workspacePath) {
     const manifestPath = path.join(workspacePath, '.source', 'manifest.json');
     if (!fs.existsSync(manifestPath))
@@ -158,7 +177,7 @@ function isSourceIndexed(sourceUrl, workspacePath) {
         return false;
     }
 }
-function setupDocs(pages, workspacePath, sourceUrl) {
+function setupDocs(pages, workspacePath, sourceUrl, extensionPath) {
     //writeContextFile(pages, workspacePath); not necessary with doc chunks
     const sourceDir = path.join(workspacePath, '.source');
     if (!fs.existsSync(sourceDir)) {
@@ -196,7 +215,7 @@ function setupDocs(pages, workspacePath, sourceUrl) {
     }
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
     //writePagesJson(pages, workspacePath);
-    (0, ruleWriter_1.writeAgentRules)(pages, workspacePath, sourceUrl); // 
+    (0, ruleWriter_1.writeAgentRules)(pages, workspacePath, sourceUrl, extensionPath); // 
 }
 function removeSource(hostname, workspacePath) {
     const sourceDir = path.join(workspacePath, '.source');
@@ -217,9 +236,30 @@ function removeSource(hostname, workspacePath) {
     if (fs.existsSync(rulePath)) {
         fs.unlinkSync(rulePath);
     }
+    // remove Claude Code rule file
+    const safeName = hostname.replace(/[^a-z0-9]/gi, '-');
+    const claudeRulePath = path.join(sourceDir, `claude-${safeName}.md`);
+    if (fs.existsSync(claudeRulePath)) {
+        fs.unlinkSync(claudeRulePath);
+    }
     // remove this source from the manifest
     manifest.sources = manifest.sources.filter(s => s.hostname !== hostname);
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+    // rebuild CLAUDE.md index
+    if (manifest.sources.length > 0) {
+        let content = '# Source Documentation\n\n';
+        for (const s of manifest.sources) {
+            const safe = s.hostname.replace(/[^a-z0-9]/gi, '-');
+            content += `@claude-${safe}.md\n`;
+        }
+        fs.writeFileSync(path.join(workspacePath, 'CLAUDE.md'), content, 'utf-8');
+    }
+    else {
+        const claudeMdPath = path.join(workspacePath, 'CLAUDE.md');
+        if (fs.existsSync(claudeMdPath)) {
+            fs.unlinkSync(claudeMdPath);
+        }
+    }
     console.log(`Removed source!: ${hostname}`);
 }
 if (require.main === module) {

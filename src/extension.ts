@@ -2,7 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { crawlDocs } from './crawler';
-import { setupDocs, removeSource, isSourceIndexed } from './mcpServer';
+import { setupDocs, removeSource, isSourceIndexed, getIndexedPages } from './mcpServer';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -58,11 +58,16 @@ class Source implements vscode.WebviewViewProvider {
 		webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 		webviewView.webview.onDidReceiveMessage(async (message) => {
 			if (message.command === 'indexUrl') {
-				// check if already indexed
 				const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
 				if (workspacePath && isSourceIndexed(message.url, workspacePath)) {
+					// already crawled — just re-run agent setup with existing pages
 					const hostname = new URL(message.url).hostname;
-					vscode.window.showInformationMessage(`${hostname} is already indexed. Remove it first to re-index.`);
+					vscode.window.showInformationMessage(`${hostname} already crawled, updating agent configs...`);
+					const existingPages = getIndexedPages(message.url, workspacePath);
+					if (existingPages) {
+						await setupDocs(existingPages, workspacePath, message.url, this._extensionUri.fsPath);
+					}
 					webviewView.webview.postMessage({ command: 'done' });
 					return;
 				}
@@ -72,7 +77,7 @@ class Source implements vscode.WebviewViewProvider {
 				console.log(`Crawled ${pages.length} pages`);
 
 				if (workspacePath) {
-					await setupDocs(pages, workspacePath, message.url);
+					await setupDocs(pages, workspacePath, message.url, this._extensionUri.fsPath);
 				}
 
 				webviewView.webview.postMessage({
