@@ -1,23 +1,23 @@
 "use strict";
 // mcp server -> links into agent and uses BM25 to index what links are most useful
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function (o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
     if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
+        desc = { enumerable: true, get: function () { return m[k]; } };
     }
     Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
+}) : (function (o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     o[k2] = m[k];
 }));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function (o, v) {
     Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
+}) : function (o, v) {
     o["default"] = v;
 });
 var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
+    var ownKeys = function (o) {
         ownKeys = Object.getOwnPropertyNames || function (o) {
             var ar = [];
             for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
@@ -38,6 +38,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getIndexedPages = getIndexedPages;
+exports.getManifestSources = getManifestSources;
 exports.isSourceIndexed = isSourceIndexed;
 exports.setupDocs = setupDocs;
 exports.removeSource = removeSource;
@@ -136,10 +137,10 @@ function createMCPServer(pages) {
         seenUris.add(uri);
         server.resource(page.title, uri, async () => ({
             contents: [{
-                    uri,
-                    text: `# ${page.title}\nURL: ${page.url}\n\n${page.content}`,
-                    mimeType: 'text/markdown'
-                }]
+                uri,
+                text: `# ${page.title}\nURL: ${page.url}\n\n${page.content}`,
+                mimeType: 'text/markdown'
+            }]
         }));
     }
     return server;
@@ -162,6 +163,18 @@ function getIndexedPages(sourceUrl, workspacePath) {
     }
     catch {
         return null;
+    }
+}
+function getManifestSources(workspacePath) {
+    const manifestPath = path.join(workspacePath, '.source', 'manifest.json');
+    if (!fs.existsSync(manifestPath))
+        return [];
+    try {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        return manifest.sources || [];
+    }
+    catch {
+        return [];
     }
 }
 function isSourceIndexed(sourceUrl, workspacePath) {
@@ -263,30 +276,30 @@ function removeSource(hostname, workspacePath) {
     console.log(`Removed source!: ${hostname}`);
 }
 if (require.main === module) {
-    // we need to load all the pages from manifest.json
-    /*
-
-    const pagesPath = process.argv[2] || '.source/pages.json';
-    const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
-    const server = createMCPServer(pages);
-    const transport = new StdioServerTransport();
-
-
-    server.connect(transport);
-    console.error(`MCP started, ${pages.length} pages`)
-
-    */
     const sourceDir = process.argv[2] || '.source';
     const manifestPath = path.join(sourceDir, 'manifest.json');
+    // create empty manifest if it doesn't exist
+    if (!fs.existsSync(manifestPath)) {
+        if (!fs.existsSync(sourceDir)) {
+            fs.mkdirSync(sourceDir, { recursive: true });
+        }
+        fs.writeFileSync(manifestPath, JSON.stringify({ sources: [] }, null, 2), 'utf-8');
+        // console.error('No manifest found, created empty one');
+    }
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
     let allPages = [];
     for (const source of manifest.sources) {
-        const pages = JSON.parse(fs.readFileSync(path.join(sourceDir, source.pagesFile), 'utf-8'));
+        const pagesPath = path.join(sourceDir, source.pagesFile);
+        if (!fs.existsSync(pagesPath)) {
+            // console.error(`Skipping missing pages file: ${source.pagesFile}`);
+            continue;
+        }
+        const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
         allPages = allPages.concat(pages);
     }
     const server = createMCPServer(allPages);
     const transport = new stdio_js_1.StdioServerTransport();
     server.connect(transport);
-    console.error(`MCP started, ${allPages.length} pages from ${manifest.sources.length} sources`);
+    // console.error(`MCP started, ${allPages.length} pages from ${manifest.sources.length} sources`);
 }
 //# sourceMappingURL=mcpServer.js.map

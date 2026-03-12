@@ -150,6 +150,17 @@ export function getIndexedPages(sourceUrl: string, workspacePath: string): Crawl
     }
 }
 
+export function getManifestSources(workspacePath: string) {
+    const manifestPath = path.join(workspacePath, '.source', 'manifest.json');
+    if (!fs.existsSync(manifestPath)) return [];
+    try {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+        return manifest.sources || [];
+    } catch {
+        return [];
+    }
+}
+
 export function isSourceIndexed(sourceUrl: string, workspacePath: string): boolean {
     const manifestPath = path.join(workspacePath, '.source', 'manifest.json');
     if (!fs.existsSync(manifestPath)) return false;
@@ -269,28 +280,28 @@ export function removeSource(hostname: string, workspacePath: string) {
 
 if (require.main === module) {
 
-    // we need to load all the pages from manifest.json
-
-    /*
-
-    const pagesPath = process.argv[2] || '.source/pages.json';
-    const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
-    const server = createMCPServer(pages);
-    const transport = new StdioServerTransport();
-
-
-    server.connect(transport);
-    console.error(`MCP started, ${pages.length} pages`)
-
-    */
-
     const sourceDir = process.argv[2] || '.source';
     const manifestPath = path.join(sourceDir, 'manifest.json');
+
+    // create empty manifest if it doesn't exist
+    if (!fs.existsSync(manifestPath)) {
+        if (!fs.existsSync(sourceDir)) {
+            fs.mkdirSync(sourceDir, { recursive: true });
+        }
+        fs.writeFileSync(manifestPath, JSON.stringify({ sources: [] }, null, 2), 'utf-8');
+        // console.error('No manifest found, created empty one');
+    }
+
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
 
     let allPages: CrawledPage[] = [];
     for (const source of manifest.sources) {
-        const pages = JSON.parse(fs.readFileSync(path.join(sourceDir, source.pagesFile), 'utf-8'));
+        const pagesPath = path.join(sourceDir, source.pagesFile);
+        if (!fs.existsSync(pagesPath)) {
+            //   console.error(`Skipping missing pages file: ${source.pagesFile}`);
+            continue;
+        }
+        const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
         allPages = allPages.concat(pages);
     }
 
@@ -298,5 +309,5 @@ if (require.main === module) {
     const transport = new StdioServerTransport();
 
     server.connect(transport);
-    console.error(`MCP started, ${allPages.length} pages from ${manifest.sources.length} sources`);
+    // console.error(`MCP started, ${allPages.length} pages from ${manifest.sources.length} sources`);
 }

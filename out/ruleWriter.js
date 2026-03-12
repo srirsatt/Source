@@ -106,21 +106,35 @@ function writeAntigravityGeneralRule(workspacePath) {
     if (!fs.existsSync(rulesDir)) {
         fs.mkdirSync(rulesDir, { recursive: true });
     }
-    let content = `# Source Documentation\n\n`;
-    content += `This project has ${manifest.sources.length} indexed documentation source${manifest.sources.length > 1 ? 's' : ''}.\n\n`;
-    content += `## MANDATORY: Use search_docs\n`;
-    content += `You MUST call \`search_docs\` from the \`source-docs\` MCP server on EVERY request related to any of the libraries below.\n`;
-    content += `Do NOT rely on your training data — it may be outdated or incorrect.\n`;
-    content += `The indexed docs are the single source of truth for this project.\n`;
-    content += `Even if you think you know the answer, verify it against \`search_docs\` first.\n`;
-    content += `If \`search_docs\` returns no results, fall back to reading project source code.\n\n`;
-    content += `## Indexed Sources\n\n`;
+    // build a loud, authoritative master rule
+    let content = `# ⚠️ THIS PROJECT HAS INDEXED DOCUMENTATION — USE search_docs\n\n`;
+    content += `Before answering ANY question about the following libraries, you MUST call\n`;
+    content += `\`search_docs\` from the \`source-docs\` MCP server. Your training data is\n`;
+    content += `likely outdated. The indexed docs are the ONLY source of truth.\n\n`;
+    content += `## Rules\n`;
+    content += `1. ALWAYS call \`search_docs\` BEFORE answering any question about these libraries\n`;
+    content += `2. Do NOT rely on training data for these libraries — it is likely wrong\n`;
+    content += `3. If \`search_docs\` returns no results, THEN fall back to reading project source code\n`;
+    content += `4. NEVER skip \`search_docs\` even if you think you know the answer\n`;
+    content += `5. Cite the documentation URL from search results in your response\n\n`;
+    content += `## Indexed Libraries\n\n`;
     for (const source of manifest.sources) {
-        content += `- **${source.hostname}** — ${source.pageCount} pages from ${source.sourceUrl}\n`;
+        content += `- **${source.hostname}** — ${source.pageCount} pages indexed from ${source.sourceUrl}\n`;
     }
-    content += `\n## How to search\n`;
-    content += `Use the \`search_docs\` tool with a keyword query. It searches across ALL indexed sources above.\n`;
-    content += `Example: \`search_docs({ query: "authentication" })\`\n`;
+    content += `\n## Example Queries\n\n`;
+    content += `These are examples of how to use \`search_docs\`. Call it like this:\n\n`;
+    content += `\`\`\`\n`;
+    for (const source of manifest.sources) {
+        const keyword = source.hostname.split('.')[0];
+        content += `search_docs({ query: "${keyword} getting started" })\n`;
+    }
+    content += `search_docs({ query: "authentication" })\n`;
+    content += `search_docs({ query: "configuration options" })\n`;
+    content += `\`\`\`\n\n`;
+    content += `## Reminder\n\n`;
+    content += `You have access to ${manifest.sources.length} documentation source${manifest.sources.length > 1 ? 's' : ''} `;
+    content += `with a combined total of ${manifest.sources.reduce((sum, s) => sum + s.pageCount, 0)} pages. `;
+    content += `This is far more accurate than your training data. USE IT.\n`;
     fs.writeFileSync(path.join(rulesDir, 'source-general.md'), content, 'utf-8');
     console.log(`Antigravity general rule written`);
 }
@@ -155,6 +169,13 @@ function writeAntigravityMcpConfig(workspacePath, extensionPath) {
     };
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8');
     console.log(`MCP config updated @ ${configPath}`);
+    // kill existing MCP server so Antigravity restarts it with new config
+    /*
+    exec("pkill -f 'mcpServer.js'", (err) => {
+        if (err) console.log('No existing MCP server to kill');
+        else console.log('Killed MCP server for restart');
+    });
+    */
 }
 function writeClaudeCodeRules(pages, workspacePath, sourceUrl) {
     const sourceDir = path.join(workspacePath, '.source');
