@@ -2,7 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { crawlDocs } from './crawler';
-import { setupDocs, removeSource, isSourceIndexed, getIndexedPages, getManifestSources, restartMcpServer } from './mcpServer';
+import { setupDocs, removeSource, isSourceIndexed, getIndexedPages, getManifestSources } from './mcpServer';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -76,19 +76,19 @@ class Source implements vscode.WebviewViewProvider {
 					if (existingPages) {
 						await setupDocs(existingPages, workspacePath, message.url, this._extensionUri.fsPath);
 					}
-					await restartMcpServer();
+
 					webviewView.webview.postMessage({ command: 'updateSources', sources: getManifestSources(workspacePath!) });
 					webviewView.webview.postMessage({ command: 'done' });
 					return;
 				}
 
 				//	vscode.window.showInformationMessage(`Indexing ${message.url} for ${message.agent}`);
-				const pages = await crawlDocs(message.url, { maxDepth: 3, maxPages: 200 });
+				const pages = await crawlDocs(message.url, { maxDepth: 3, maxPages: 300 });
 				console.log(`Crawled ${pages.length} pages`);
 
 				if (workspacePath) {
 					await setupDocs(pages, workspacePath, message.url, this._extensionUri.fsPath);
-					await restartMcpServer();
+
 					webviewView.webview.postMessage({ command: 'updateSources', sources: getManifestSources(workspacePath) });
 				}
 

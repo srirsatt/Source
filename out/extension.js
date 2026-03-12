@@ -101,7 +101,7 @@ class Source {
                     return;
                 }
                 //	vscode.window.showInformationMessage(`Indexing ${message.url} for ${message.agent}`);
-                const pages = await (0, crawler_1.crawlDocs)(message.url, { maxDepth: 3, maxPages: 200 });
+                const pages = await (0, crawler_1.crawlDocs)(message.url, { maxDepth: 3, maxPages: 300 });
                 console.log(`Crawled ${pages.length} pages`);
                 if (workspacePath) {
                     await (0, mcpServer_1.setupDocs)(pages, workspacePath, message.url, this._extensionUri.fsPath);

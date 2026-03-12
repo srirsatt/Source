@@ -7,7 +7,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
 import { writeAgentRules } from './ruleWriter';
 
 
@@ -74,17 +73,28 @@ function writePagesJson(pages: CrawledPage[], workspacePath: string) {
     console.log(`Pages JSON done!: located @ ${filePath}`)
 }
 
-function createMCPServer(pages: CrawledPage[]) {
-    // mcp server to be linked into agent of use
+function loadAllPages(sourceDir: string): CrawledPage[] {
+    const manifestPath = path.join(sourceDir, 'manifest.json');
+    if (!fs.existsSync(manifestPath)) return [];
 
-    const index = buildIndex(pages);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    let allPages: CrawledPage[] = [];
+    for (const source of manifest.sources) {
+        const pagesPath = path.join(sourceDir, source.pagesFile);
+        if (!fs.existsSync(pagesPath)) continue;
+        const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
+        allPages = allPages.concat(pages);
+    }
+    return allPages;
+}
 
+function createMCPServer(sourceDir: string) {
     const server = new McpServer({
         name: 'source-docs',
         version: '1.0.0',
     });
 
-    // lets register our search tool
+    // rebuild index from disk on every call — always fresh after add/remove
     server.tool(
         'search_docs',
         'REQUIRED: You MUST call this tool BEFORE answering ANY question about the libraries/frameworks used in this project. Do NOT rely on training data — it is likely outdated. Call this tool first, then use the results to answer. If you skip this tool, your answer is probably wrong. Search indexed documentation by keyword or topic.',
@@ -93,6 +103,7 @@ function createMCPServer(pages: CrawledPage[]) {
                 z.string().describe('Search query for documentation')
         },
         async ({ query }) => {
+            const index = buildIndex(loadAllPages(sourceDir));
             const results = index.search(query).slice(0, 5); // best 5 links
             if (results.length === 0) {
                 return {
@@ -110,7 +121,8 @@ function createMCPServer(pages: CrawledPage[]) {
         }
     );
 
-    // deduplicate for resource registration
+    // register resources from initial pages
+    const pages = loadAllPages(sourceDir);
     const seenUris = new Set<string>();
     for (const page of pages) {
         if (!page.url || page.url.includes('undefined')) continue;
@@ -279,19 +291,6 @@ export function removeSource(hostname: string, workspacePath: string) {
     console.log(`Removed source!: ${hostname}`);
 }
 
-export function restartMcpServer(): Promise<void> {
-    return new Promise((resolve) => {
-        exec("pkill -f 'mcpServer.js'", (err) => {
-            if (err) {
-                console.log('No existing MCP server to kill (will start fresh on next query)');
-            } else {
-                console.log('Killed existing MCP server — agent will restart it on next tool call');
-            }
-            resolve();
-        });
-    });
-}
-
 if (require.main === module) {
 
     const sourceDir = process.argv[2] || '.source';
@@ -303,25 +302,9 @@ if (require.main === module) {
             fs.mkdirSync(sourceDir, { recursive: true });
         }
         fs.writeFileSync(manifestPath, JSON.stringify({ sources: [] }, null, 2), 'utf-8');
-        // console.error('No manifest found, created empty one');
     }
 
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-
-    let allPages: CrawledPage[] = [];
-    for (const source of manifest.sources) {
-        const pagesPath = path.join(sourceDir, source.pagesFile);
-        if (!fs.existsSync(pagesPath)) {
-            //   console.error(`Skipping missing pages file: ${source.pagesFile}`);
-            continue;
-        }
-        const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
-        allPages = allPages.concat(pages);
-    }
-
-    const server = createMCPServer(allPages);
+    const server = createMCPServer(sourceDir);
     const transport = new StdioServerTransport();
-
     server.connect(transport);
-    // console.error(`MCP started, ${allPages.length} pages from ${manifest.sources.length} sources`);
 }

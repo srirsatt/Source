@@ -104,17 +104,31 @@ function writePagesJson(pages, workspacePath) {
     fs.writeFileSync(filePath, JSON.stringify(pages), 'utf-8');
     console.log(`Pages JSON done!: located @ ${filePath}`);
 }
-function createMCPServer(pages) {
-    // mcp server to be linked into agent of use
-    const index = buildIndex(pages);
+function loadAllPages(sourceDir) {
+    const manifestPath = path.join(sourceDir, 'manifest.json');
+    if (!fs.existsSync(manifestPath))
+        return [];
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    let allPages = [];
+    for (const source of manifest.sources) {
+        const pagesPath = path.join(sourceDir, source.pagesFile);
+        if (!fs.existsSync(pagesPath))
+            continue;
+        const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
+        allPages = allPages.concat(pages);
+    }
+    return allPages;
+}
+function createMCPServer(sourceDir) {
     const server = new mcp_js_1.McpServer({
         name: 'source-docs',
         version: '1.0.0',
     });
-    // lets register our search tool
+    // rebuild index from disk on every call — always fresh after add/remove
     server.tool('search_docs', 'REQUIRED: You MUST call this tool BEFORE answering ANY question about the libraries/frameworks used in this project. Do NOT rely on training data — it is likely outdated. Call this tool first, then use the results to answer. If you skip this tool, your answer is probably wrong. Search indexed documentation by keyword or topic.', {
         query: zod_1.z.string().describe('Search query for documentation')
     }, async ({ query }) => {
+        const index = buildIndex(loadAllPages(sourceDir));
         const results = index.search(query).slice(0, 5); // best 5 links
         if (results.length === 0) {
             return {
@@ -126,7 +140,8 @@ function createMCPServer(pages) {
             content: [{ type: 'text', text }]
         };
     });
-    // deduplicate for resource registration
+    // register resources from initial pages
+    const pages = loadAllPages(sourceDir);
     const seenUris = new Set();
     for (const page of pages) {
         if (!page.url || page.url.includes('undefined'))
@@ -284,22 +299,9 @@ if (require.main === module) {
             fs.mkdirSync(sourceDir, { recursive: true });
         }
         fs.writeFileSync(manifestPath, JSON.stringify({ sources: [] }, null, 2), 'utf-8');
-        // console.error('No manifest found, created empty one');
     }
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-    let allPages = [];
-    for (const source of manifest.sources) {
-        const pagesPath = path.join(sourceDir, source.pagesFile);
-        if (!fs.existsSync(pagesPath)) {
-            //   console.error(`Skipping missing pages file: ${source.pagesFile}`);
-            continue;
-        }
-        const pages = JSON.parse(fs.readFileSync(pagesPath, 'utf-8'));
-        allPages = allPages.concat(pages);
-    }
-    const server = createMCPServer(allPages);
+    const server = createMCPServer(sourceDir);
     const transport = new stdio_js_1.StdioServerTransport();
     server.connect(transport);
-    // console.error(`MCP started, ${allPages.length} pages from ${manifest.sources.length} sources`);
 }
 //# sourceMappingURL=mcpServer.js.map
