@@ -91,7 +91,7 @@ class Source {
             if (message.command === 'indexUrl') {
                 if (workspacePath && (0, mcpServer_1.isSourceIndexed)(message.url, workspacePath)) {
                     const hostname = new URL(message.url).hostname;
-                    vscode.window.showInformationMessage(`${hostname} already crawled, updating agent configs...`);
+                    //	vscode.window.showInformationMessage(`${hostname} already crawled, updating agent configs...`);
                     const existingPages = (0, mcpServer_1.getIndexedPages)(message.url, workspacePath);
                     if (existingPages) {
                         await (0, mcpServer_1.setupDocs)(existingPages, workspacePath, message.url, this._extensionUri.fsPath);
@@ -100,7 +100,7 @@ class Source {
                     webviewView.webview.postMessage({ command: 'done' });
                     return;
                 }
-                vscode.window.showInformationMessage(`Indexing ${message.url} for ${message.agent}`);
+                //	vscode.window.showInformationMessage(`Indexing ${message.url} for ${message.agent}`);
                 const pages = await (0, crawler_1.crawlDocs)(message.url, { maxDepth: 3, maxPages: 200 });
                 console.log(`Crawled ${pages.length} pages`);
                 if (workspacePath) {
@@ -112,7 +112,7 @@ class Source {
             if (message.command === 'removeSource') {
                 if (workspacePath) {
                     (0, mcpServer_1.removeSource)(message.hostname, workspacePath);
-                    vscode.window.showInformationMessage(`Removed ${message.hostname}`);
+                    //	vscode.window.showInformationMessage(`Removed ${message.hostname}`);
                     webviewView.webview.postMessage({ command: 'updateSources', sources: (0, mcpServer_1.getManifestSources)(workspacePath) });
                     webviewView.webview.postMessage({ command: 'done' });
                 }
@@ -167,7 +167,7 @@ class Source {
 						font-family: 'Space Grotesk', sans-serif;
 						font-size: 18px;
 						font-weight: 700;
-						letter-spacing: 1px;
+						letter-spacing: 0.5px;
 						text-transform: lowercase;
 						color: rgba(255,255,255,0.85);
 					}
@@ -273,7 +273,7 @@ class Source {
 						border-radius: var(--r);
 						font-size: 12px;
 						gap: 10px;
-						border: 1px solid rgba(91, 127, 245, 0.12);
+						border: 1px solid rgba(255,255,255,0.06);
 						overflow: hidden;
 					}
 

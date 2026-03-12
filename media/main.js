@@ -87,19 +87,19 @@
         card.className = 'source-loading';
         card.id = 'loadingCard';
 
-        const bar = document.createElement('span');
-        bar.style.cssText = 'width:3px; align-self:stretch; background:#5b7ff5; border-radius:2px; flex-shrink:0; animation: pulse 1.5s ease-in-out infinite;';
+        const dot = document.createElement('span');
+        dot.style.cssText = 'width:6px; height:6px; border-radius:50%; background:rgba(91,127,245,0.5); flex-shrink:0; animation: pulse 1.5s ease-in-out infinite;';
 
         const info = document.createElement('div');
         info.style.cssText = 'flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;';
 
         const name = document.createElement('span');
         name.textContent = hostname;
-        name.style.cssText = 'opacity:0.8; font-size:11.5px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+        name.style.cssText = 'opacity:0.7; font-size:12px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
 
         const meta = document.createElement('span');
         meta.textContent = 'indexing\u2026';
-        meta.style.cssText = 'opacity:0.35; font-size:9px; letter-spacing:0.5px; color:#5b7ff5;';
+        meta.style.cssText = 'opacity:0.2; font-size:10px; color:#5b7ff5;';
 
         info.appendChild(name);
         info.appendChild(meta);
@@ -110,7 +110,7 @@
         progressBar.className = 'progress-bar';
         track.appendChild(progressBar);
 
-        card.appendChild(bar);
+        card.appendChild(dot);
         card.appendChild(info);
         card.appendChild(track);
 

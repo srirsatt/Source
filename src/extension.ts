@@ -2,7 +2,7 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import { crawlDocs } from './crawler';
-import { setupDocs, removeSource, isSourceIndexed, getIndexedPages, getManifestSources } from './mcpServer';
+import { setupDocs, removeSource, isSourceIndexed, getIndexedPages, getManifestSources, restartMcpServer } from './mcpServer';
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -71,22 +71,24 @@ class Source implements vscode.WebviewViewProvider {
 			if (message.command === 'indexUrl') {
 				if (workspacePath && isSourceIndexed(message.url, workspacePath)) {
 					const hostname = new URL(message.url).hostname;
-					vscode.window.showInformationMessage(`${hostname} already crawled, updating agent configs...`);
+					//	vscode.window.showInformationMessage(`${hostname} already crawled, updating agent configs...`);
 					const existingPages = getIndexedPages(message.url, workspacePath);
 					if (existingPages) {
 						await setupDocs(existingPages, workspacePath, message.url, this._extensionUri.fsPath);
 					}
+					await restartMcpServer();
 					webviewView.webview.postMessage({ command: 'updateSources', sources: getManifestSources(workspacePath!) });
 					webviewView.webview.postMessage({ command: 'done' });
 					return;
 				}
 
-				vscode.window.showInformationMessage(`Indexing ${message.url} for ${message.agent}`);
+				//	vscode.window.showInformationMessage(`Indexing ${message.url} for ${message.agent}`);
 				const pages = await crawlDocs(message.url, { maxDepth: 3, maxPages: 200 });
 				console.log(`Crawled ${pages.length} pages`);
 
 				if (workspacePath) {
 					await setupDocs(pages, workspacePath, message.url, this._extensionUri.fsPath);
+					await restartMcpServer();
 					webviewView.webview.postMessage({ command: 'updateSources', sources: getManifestSources(workspacePath) });
 				}
 
@@ -96,7 +98,7 @@ class Source implements vscode.WebviewViewProvider {
 			if (message.command === 'removeSource') {
 				if (workspacePath) {
 					removeSource(message.hostname, workspacePath);
-					vscode.window.showInformationMessage(`Removed ${message.hostname}`);
+					//	vscode.window.showInformationMessage(`Removed ${message.hostname}`);
 					webviewView.webview.postMessage({ command: 'updateSources', sources: getManifestSources(workspacePath) });
 					webviewView.webview.postMessage({ command: 'done' });
 				}
@@ -155,7 +157,7 @@ class Source implements vscode.WebviewViewProvider {
 						font-family: 'Space Grotesk', sans-serif;
 						font-size: 18px;
 						font-weight: 700;
-						letter-spacing: 1px;
+						letter-spacing: 0.5px;
 						text-transform: lowercase;
 						color: rgba(255,255,255,0.85);
 					}
@@ -261,7 +263,7 @@ class Source implements vscode.WebviewViewProvider {
 						border-radius: var(--r);
 						font-size: 12px;
 						gap: 10px;
-						border: 1px solid rgba(91, 127, 245, 0.12);
+						border: 1px solid rgba(255,255,255,0.06);
 						overflow: hidden;
 					}
 

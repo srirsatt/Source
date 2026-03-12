@@ -7,6 +7,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
+import { exec } from 'child_process';
 import { writeAgentRules } from './ruleWriter';
 
 
@@ -276,6 +277,19 @@ export function removeSource(hostname: string, workspacePath: string) {
     }
 
     console.log(`Removed source!: ${hostname}`);
+}
+
+export function restartMcpServer(): Promise<void> {
+    return new Promise((resolve) => {
+        exec("pkill -f 'mcpServer.js'", (err) => {
+            if (err) {
+                console.log('No existing MCP server to kill (will start fresh on next query)');
+            } else {
+                console.log('Killed existing MCP server — agent will restart it on next tool call');
+            }
+            resolve();
+        });
+    });
 }
 
 if (require.main === module) {
