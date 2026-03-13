@@ -186,7 +186,8 @@ function getManifestSources(workspacePath) {
         return [];
     try {
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-        return manifest.sources || [];
+        const sources = manifest.sources || [];
+        return sources.sort((a, b) => new Date(b.indexedAt).getTime() - new Date(a.indexedAt).getTime());
     }
     catch {
         return [];
