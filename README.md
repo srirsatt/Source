@@ -2,6 +2,8 @@
 
 Source is a VS Code extension that bridges the gap between AI coding agents and documentation. It crawls and indexes documentation sites, then serves them to coding agents via MCP (Model Context Protocol) so they reference real docs instead of hallucinating.
 
+![Source demo](media/sourcedemo.gif)
+
 ## How It Works
 
 1. Paste a documentation URL into the sidebar input.
@@ -57,3 +59,6 @@ To remove a source, click the remove button next to it in the sidebar.
 ## License
 
 MIT
+
+
+[def]: media/sourcedemo.gif

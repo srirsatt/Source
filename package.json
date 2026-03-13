@@ -3,6 +3,10 @@
   "displayName": "Source",
   "description": "Source, a VS Code extension to bridge the hallucination gap between coding agents and documentation.",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/srirsatt/Source"
+  },
   "engines": {
     "vscode": "^1.107.0"
   },
