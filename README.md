@@ -1,71 +1,59 @@
-# source README
+# Source
 
-This is the README for your extension "source". After writing up a brief description, we recommend including the following sections.
+Source is a VS Code extension that bridges the gap between AI coding agents and documentation. It crawls and indexes documentation sites, then serves them to coding agents via MCP (Model Context Protocol) so they reference real docs instead of hallucinating.
 
-## Features
+## How It Works
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+1. Paste a documentation URL into the sidebar input.
+2. Source crawls the site (using sitemaps when available, falling back to link crawling).
+3. The crawled pages are indexed with BM25 and stored locally in a `.source` directory.
+4. A `search_docs` MCP tool is registered so agents like Gemini CLI and Claude Code can query the indexed docs by keyword.
+5. Agent rule files are written automatically so the agents know to call `search_docs` before relying on training data.
 
-For example if there is an image subfolder under your extension project workspace:
+## Supported Agents
 
-\!\[feature X\]\(images/feature-x.png\)
+- Gemini CLI / Antigravity -- writes rules to `.agent/rules/` and configures `~/.gemini/antigravity/mcp_config.json`
+- Claude Code -- writes a `CLAUDE.md` file and configures `.mcp.json` in the workspace root
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## Project Structure
 
-## Requirements
+```
+src/
+  extension.ts    -- VS Code extension entry point and webview UI
+  crawler.ts      -- Sitemap parser and recursive link crawler
+  mcpServer.ts    -- MCP server with search_docs tool and BM25 index
+  ruleWriter.ts   -- Generates agent-specific rule and config files
+media/
+  main.js         -- Webview client-side logic
+```
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+## Dependencies
 
-## Extension Settings
+- @modelcontextprotocol/sdk -- MCP server implementation
+- cheerio -- HTML parsing and crawling
+- minisearch -- BM25 full-text search index
+- node-fetch -- HTTP requests for crawling
+- zod -- Schema validation for MCP tool inputs
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+## Development
 
-For example:
+```
+npm install
+npm run compile
+```
 
-This extension contributes the following settings:
+Press F5 in VS Code to launch the Extension Development Host.
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+## Usage
 
-## Known Issues
+1. Open a project in VS Code.
+2. Click the Source icon in the activity bar.
+3. Enter a documentation URL (e.g. `https://docs.example.com/getting-started`).
+4. Wait for crawling to finish. The indexed source will appear in the sidebar.
+5. Your coding agent will now use the `search_docs` MCP tool to query the indexed docs.
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+To remove a source, click the remove button next to it in the sidebar.
 
-## Release Notes
+## License
 
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+MIT
