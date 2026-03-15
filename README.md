@@ -1,6 +1,6 @@
 # Source
 
-Source is a VS Code extension that bridges the gap between AI coding agents and documentation. It crawls and indexes documentation sites, then serves them to coding agents via MCP (Model Context Protocol) so they reference real docs instead of hallucinating.
+Source is a VS Code extension that brings documentation indexing and MCP tooling directly into the IDE. It crawls and indexes documentation sites, then exposes them to coding agents through MCP so agents reference real docs instead of hallucinating.
 
 ![Source demo](media/sourcedemo.gif)
 
