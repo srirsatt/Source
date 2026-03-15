@@ -14,7 +14,7 @@ Source is a VS Code extension that brings documentation indexing and MCP tooling
 
 ## Supported Agents
 
-- Gemini CLI / Antigravity -- writes rules to `.agent/rules/` and configures `~/.gemini/antigravity/mcp_config.json`
+- Antigravity -- writes rules to `.agent/rules/` and configures `~/.gemini/antigravity/mcp_config.json`
 - Claude Code -- writes a `CLAUDE.md` file and configures `.mcp.json` in the workspace root
 
 ## Project Structure
